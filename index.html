@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CV Match Check</title>
+<style>
+:root{--bg:#f7f8f6;--ink:#17211c;--mut:#5d6b63;--line:#d9dfda;--acc:#0f6b4f;--bad:#a63a2b;--card:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#121714;--ink:#e8eee9;--mut:#9aa8a0;--line:#2b3730;--acc:#4cc596;--bad:#e5846f;--card:#1a221d}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Georgia,'Times New Roman',serif}
+main{max-width:720px;margin:0 auto;padding:24px 16px 64px}
+h1{font-size:2rem;line-height:1.15;margin:8px 0 6px}
+p.lead{color:var(--mut);margin:0 0 24px}
+label{display:block;font-weight:bold;margin:18px 0 6px}
+textarea,input[type=text],input[type=url],input[type=email],input[type=tel]{width:100%;padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);font:inherit}
+textarea{min-height:130px}
+button{font:inherit;padding:12px 20px;border-radius:6px;border:0;background:var(--acc);color:#fff;cursor:pointer;margin-top:18px}
+@media (prefers-color-scheme:dark){button{color:#0b130f}}
+button.alt{background:transparent;color:var(--acc);border:1px solid var(--acc)}
+button:disabled{opacity:.5}
+:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.bar{display:flex;justify-content:space-between;color:var(--mut);font-size:.9rem}
+.score{font-size:4.5rem;font-weight:bold;line-height:1;margin:8px 0}
+.row{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding:6px 0}
+.chips span{display:inline-block;border:1px solid var(--line);padding:2px 9px;margin:3px 4px 3px 0;border-radius:99px;font-size:.9rem}
+.chips.bad span{border-color:var(--bad);color:var(--bad)}
+.err{color:var(--bad);margin-top:12px}
+.small{color:var(--mut);font-size:.85rem}
+#app{display:none}#auth{display:none;max-width:380px}
+#result,#pay{display:none;margin-top:28px;border-top:2px solid var(--ink);padding-top:12px}
+</style>
+</head>
+<body>
+<main>
+  <section id="auth">
+    <h1>CV Match Check</h1>
+    <p class="lead">Log in or create an account to check your CV against a job.</p>
+    <label for="aem">Email</label><input type="email" id="aem" autocomplete="email">
+    <label for="apw">Password (6+ characters)</label><input type="password" id="apw" autocomplete="current-password" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);font:inherit">
+    <button id="login">Log in</button> <button class="alt" id="signup">Create account</button>
+    <div class="err" id="aerr" role="alert"></div>
+  </section>
+<div id="app">
+  <div class="bar"><span><span id="who"></span> · Credits: <b id="cr">…</b> · <a href="#" id="out">Log out</a></span><button class="alt" id="buy" style="margin:0;padding:4px 12px">Buy 3 checks</button></div>
+  <h1>Does your CV match the job?</h1>
+  <p class="lead">Paste a job ad and upload your CV. You get a match score and the keywords you are missing.</p>
+
+  <label for="job">Job description</label>
+  <textarea id="job" placeholder="Paste the full job ad here"></textarea>
+  <label for="url">Or a job link (some sites block this)</label>
+  <input type="url" id="url" placeholder="https://…">
+
+  <label for="file">Your CV (PDF, Word, or photo)</label>
+  <input type="file" id="file" accept=".pdf,.docx,.png,.jpg,.jpeg,.txt">
+  <label for="cvt">Or paste your CV text</label>
+  <textarea id="cvt"></textarea>
+
+  <button id="go">Check my CV</button>
+  <div class="err" id="err" role="alert"></div>
+
+  <section id="result" aria-live="polite">
+    <div class="score"><span id="sc"></span>/100</div>
+    <div id="bd"></div>
+    <h2>Keywords you have</h2><div class="chips" id="ok"></div>
+    <h2>Keywords missing</h2><div class="chips bad" id="miss"></div>
+    <h2>What to fix</h2><ul id="adv"></ul>
+    <p class="small" id="note"></p>
+  </section>
+
+  <section id="pay">
+    <h2>Buy 3 checks for $2.05</h2>
+    <label for="ph">EcoCash number</label><input type="tel" id="ph" placeholder="0771234567">
+    <button id="payGo">Pay with EcoCash</button>
+    <p id="payMsg"></p>
+  </section>
+</div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+let sb;
+async function token(){const {data}=await sb.auth.getSession();return data.session?data.session.access_token:''}
+async function api(path,opts={}){opts.headers={...(opts.headers||{}),Authorization:'Bearer '+await token()};return fetch(path,opts)}
+async function refresh(){const r=await api('/api/credits');if(r.ok)$('cr').textContent=(await r.json()).credits}
+function setSession(s){
+  $('auth').style.display=s?'none':'block';$('app').style.display=s?'block':'none';
+  if(s){$('who').textContent=s.user.email;refresh()}
+}
+(async()=>{
+  const cfg=await (await fetch('/api/config')).json();
+  sb=supabase.createClient(cfg.url,cfg.anon);
+  const {data}=await sb.auth.getSession();setSession(data.session);
+  sb.auth.onAuthStateChange((_e,s)=>setSession(s));
+})();
+$('login').onclick=async()=>{
+  $('aerr').textContent='';
+  const {error}=await sb.auth.signInWithPassword({email:$('aem').value.trim(),password:$('apw').value});
+  if(error)$('aerr').textContent=error.message;
+};
+$('signup').onclick=async()=>{
+  $('aerr').textContent='';
+  const {data,error}=await sb.auth.signUp({email:$('aem').value.trim(),password:$('apw').value});
+  if(error)$('aerr').textContent=error.message;
+  else if(!data.session)$('aerr').textContent='Check your email and click the confirmation link, then log in.';
+};
+$('out').onclick=async e=>{e.preventDefault();await sb.auth.signOut()};
+$('buy').onclick=()=>{$('pay').style.display='block';$('pay').scrollIntoView()};
+$('go').onclick=async()=>{
+  $('err').textContent='';$('go').disabled=true;$('go').textContent='Checking…';
+  const f=new FormData();f.append('job_text',$('job').value);f.append('job_url',$('url').value);f.append('cv_text',$('cvt').value);
+  if($('file').files[0])f.append('cv_file',$('file').files[0]);
+  try{
+    const r=await api('/api/analyze',{method:'POST',body:f});const d=await r.json();
+    if(!r.ok){$('err').textContent=d.detail||'Something went wrong.';if(r.status===402)$('pay').style.display='block';return}
+    show(d);
+  }catch(e){$('err').textContent='Network error. Try again.'}
+  finally{$('go').disabled=false;$('go').textContent='Check my CV'}
+};
+function chips(el,a){el.innerHTML='';a.forEach(x=>{const s=document.createElement('span');s.textContent=x;el.appendChild(s)})}
+function show(d){
+  $('sc').textContent=d.score;$('cr').textContent=d.credits;
+  const L={keywords:['Keywords',50],experience:['Experience',25],education:['Education',15],format:['CV format',10]};
+  $('bd').innerHTML='';Object.entries(d.breakdown).forEach(([k,v])=>{const r=document.createElement('div');r.className='row';r.textContent=L[k][0];const b=document.createElement('b');b.textContent=v+' / '+L[k][1];r.appendChild(b);$('bd').appendChild(r)});
+  chips($('ok'),d.matched);chips($('miss'),d.missing);
+  $('adv').innerHTML='';d.advice.forEach(a=>{const li=document.createElement('li');li.textContent=a;$('adv').appendChild(li)});
+  $('note').textContent=d.note;$('result').style.display='block';$('result').scrollIntoView();
+}
+$('payGo').onclick=async()=>{
+  const f=new FormData();f.append('phone',$('ph').value);
+  const r=await api('/api/pay',{method:'POST',body:f});const d=await r.json();
+  if(!r.ok){$('payMsg').textContent=d.detail;return}
+  $('payMsg').textContent=d.instructions+' Waiting for confirmation…';
+  const t=setInterval(async()=>{const s=await (await api('/api/pay/status?ref='+d.ref)).json();
+    if(s.paid){clearInterval(t);$('payMsg').textContent='Paid. Credits added.';refresh()}},4000);
+};
+</script>
+</body>
+</html>
