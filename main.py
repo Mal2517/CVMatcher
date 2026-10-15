@@ -2,11 +2,10 @@ import os, uuid
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 
-from . import db
-from .parsing import read_cv, read_job_url
-from .scoring import analyze
+import db
+from parsing import read_cv, read_job_url
+from scoring import analyze
 
 app = FastAPI(title="CV ATS Matcher")
 PACK_CREDITS = int(os.getenv("PACK_CREDITS", "3"))
@@ -105,7 +104,6 @@ def webhook(reference: str = Form("")):
 
 @app.get("/")
 def index():
-    return FileResponse("static/index.html")
+    return FileResponse("index.html")
 
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
